@@ -142,7 +142,7 @@ export function StackedCardsContainer({
         <div
           id={`questionCard-${questionIdxTemp.toString()}`}
           data-testid={`questionCard-${questionIdxTemp.toString()}`}
-          className={cn("fb-w-full fb-bg-survey-bg fb-overflow-hidden", fullSizeCards ? "fb-h-full" : "")}
+          className={cn("fb-w-full fb-bg-survey-bg fb-overflow-hidden")} //, fullSizeCards ? "fb-h-full" : "")}
           style={borderStyles}>
           {getCardContent(questionIdxTemp, 0)}
         </div>
