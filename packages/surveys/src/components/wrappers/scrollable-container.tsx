@@ -17,7 +17,6 @@ export function ScrollableContainer({ children }: ScrollableContainerProps) {
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
 
     setIsAtBottom(Math.round(scrollTop) + clientHeight >= scrollHeight);
-
     setIsAtTop(scrollTop === 0);
   };
 
@@ -49,8 +48,11 @@ export function ScrollableContainer({ children }: ScrollableContainerProps) {
         ref={containerRef}
         style={{
           scrollbarGutter: "stable both-edges",
-          maxHeight: isSurveyPreview ? "12dvh" : "12dvh",
-          minHeight: isSurveyPreview ? "12dvh" : "12dvh",
+          // maxHeight: isSurveyPreview ? "12dvh" : "12dvh",
+          // minHeight: isSurveyPreview ? "12dvh" : "12dvh",
+          maxHeight: "var(--fb-scrollable-max-height)",
+          minHeight: "var(--fb-scrollable-min-height)",
+          // height: "12dvh",
         }}
         className={cn("fb-overflow-auto fb-px-4 fb-pb-4 fb-bg-survey-bg")}>
         {children}
