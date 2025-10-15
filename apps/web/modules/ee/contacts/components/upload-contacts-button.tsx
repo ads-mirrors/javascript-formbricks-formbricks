@@ -77,6 +77,9 @@ export const UploadContactsCSVButton = ({
         const records = parse(csv, {
           columns: true, // Parse the header as column names
           skip_empty_lines: true, // Skip empty lines
+          trim: true, // Trim whitespace from values
+          relax_column_count: true, // Allow rows with different column counts
+          relax_quotes: true, // Be more forgiving with quotes
         });
 
         const parsedRecords = ZContactCSVUploadResponse.safeParse(records);

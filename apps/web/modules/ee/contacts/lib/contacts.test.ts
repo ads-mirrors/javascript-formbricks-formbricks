@@ -364,6 +364,140 @@ describe("createContactsFromCSV", () => {
     // language attribute key should already exist, no need to create it
     expect(prisma.contactAttributeKey.createMany).not.toHaveBeenCalled();
   });
+
+  test("filters out empty values when creating contacts", async () => {
+    vi.mocked(prisma.contact.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.contactAttribute.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.contactAttributeKey.findMany).mockResolvedValue([
+      { key: "email", id: "id-email" },
+      { key: "name", id: "id-name" },
+      { key: "company", id: "id-company" },
+    ] as any);
+
+    const mockCreate = vi.fn().mockResolvedValue({
+      id: "c1",
+      environmentId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      attributes: [
+        { attributeKey: { key: "email" }, value: "john@example.com" },
+        { attributeKey: { key: "name" }, value: "John" },
+      ],
+    } as any);
+    vi.mocked(prisma.contact.create).mockImplementation(mockCreate);
+
+    const csvData = [
+      {
+        email: "john@example.com",
+        name: "John",
+        company: "", // Empty value should be filtered out
+      },
+    ];
+
+    await createContactsFromCSV(csvData, environmentId, "skip", {
+      email: "email",
+      name: "name",
+      company: "company",
+    });
+
+    // Verify that the create was called with only non-empty attributes
+    expect(mockCreate).toHaveBeenCalled();
+    const createCall = mockCreate.mock.calls[0][0];
+    expect(createCall.data.attributes.create).toHaveLength(2); // Only email and name, not company
+    expect(
+      createCall.data.attributes.create.some(
+        (attr: any) => attr.attributeKey.connect.key_environmentId.key === "company"
+      )
+    ).toBe(false);
+  });
+
+  test("filters out whitespace-only values when creating contacts", async () => {
+    vi.mocked(prisma.contact.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.contactAttribute.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.contactAttributeKey.findMany).mockResolvedValue([
+      { key: "email", id: "id-email" },
+      { key: "name", id: "id-name" },
+      { key: "title", id: "id-title" },
+    ] as any);
+
+    const mockCreate = vi.fn().mockResolvedValue({
+      id: "c1",
+      environmentId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      attributes: [
+        { attributeKey: { key: "email" }, value: "john@example.com" },
+        { attributeKey: { key: "name" }, value: "John" },
+      ],
+    } as any);
+    vi.mocked(prisma.contact.create).mockImplementation(mockCreate);
+
+    const csvData = [
+      {
+        email: "john@example.com",
+        name: "John",
+        title: "   ", // Whitespace-only value should be filtered out
+      },
+    ];
+
+    await createContactsFromCSV(csvData, environmentId, "skip", {
+      email: "email",
+      name: "name",
+      title: "title",
+    });
+
+    // Verify that the create was called with only non-empty attributes
+    expect(mockCreate).toHaveBeenCalled();
+    const createCall = mockCreate.mock.calls[0][0];
+    expect(createCall.data.attributes.create).toHaveLength(2); // Only email and name, not title
+  });
+
+  test("throws ValidationError for empty attribute key names", async () => {
+    vi.mocked(prisma.contact.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.contactAttribute.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.contactAttributeKey.findMany).mockResolvedValue([
+      { key: "email", id: "id-email" },
+    ] as any);
+
+    const csvData = [
+      {
+        email: "john@example.com",
+        "   ": "value", // Whitespace-only attribute key
+      },
+    ];
+
+    await expect(
+      createContactsFromCSV(csvData, environmentId, "skip", { email: "email", "   ": "   " })
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      createContactsFromCSV(csvData, environmentId, "skip", { email: "email", "   ": "   " })
+    ).rejects.toThrow("empty or whitespace-only keys are not allowed");
+  });
+
+  test("throws ValidationError for attribute keys exceeding 255 characters", async () => {
+    vi.mocked(prisma.contact.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.contactAttribute.findMany).mockResolvedValue([]);
+    // Mock only email key exists, so the long key will be detected as missing
+    vi.mocked(prisma.contactAttributeKey.findMany).mockResolvedValue([
+      { key: "email", id: "id-email" },
+    ] as any);
+
+    const longKey = "a".repeat(256);
+    const csvData = [
+      {
+        email: "john@example.com",
+        [longKey]: "value",
+      },
+    ];
+
+    // The validation happens before createMany, so we don't need to mock it
+    await expect(createContactsFromCSV(csvData, environmentId, "skip", { email: "email" })).rejects.toThrow(
+      ValidationError
+    );
+    await expect(createContactsFromCSV(csvData, environmentId, "skip", { email: "email" })).rejects.toThrow(
+      "keys must be 255 characters or less"
+    );
+  });
 });
 
 describe("buildContactWhereClause", () => {

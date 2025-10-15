@@ -1,15 +1,15 @@
 import "server-only";
-import { ITEMS_PER_PAGE } from "@/lib/constants";
-import { validateInputs } from "@/lib/utils/validate";
-import { getContactSurveyLink } from "@/modules/ee/contacts/lib/contact-survey-link";
-import { segmentFilterToPrismaQuery } from "@/modules/ee/contacts/segments/lib/filter/prisma-query";
-import { getSegment } from "@/modules/ee/contacts/segments/lib/segments";
 import { Prisma } from "@prisma/client";
 import { cache as reactCache } from "react";
 import { prisma } from "@formbricks/database";
 import { logger } from "@formbricks/logger";
 import { ZId, ZOptionalNumber, ZOptionalString } from "@formbricks/types/common";
 import { DatabaseError, ValidationError } from "@formbricks/types/errors";
+import { ITEMS_PER_PAGE } from "@/lib/constants";
+import { validateInputs } from "@/lib/utils/validate";
+import { getContactSurveyLink } from "@/modules/ee/contacts/lib/contact-survey-link";
+import { segmentFilterToPrismaQuery } from "@/modules/ee/contacts/segments/lib/filter/prisma-query";
+import { getSegment } from "@/modules/ee/contacts/segments/lib/segments";
 import {
   TContact,
   TContactWithAttributes,
@@ -299,6 +299,19 @@ export const createContactsFromCSV = async (
 
     const missingKeys = Array.from(csvKeys).filter((key) => !attributeKeyMap.has(key));
 
+    // Validate attribute key names
+    for (const key of missingKeys) {
+      const trimmedKey = key.trim();
+      if (!trimmedKey || trimmedKey.length === 0) {
+        throw new ValidationError(`Invalid attribute key: empty or whitespace-only keys are not allowed`);
+      }
+      if (trimmedKey.length > 255) {
+        throw new ValidationError(
+          `Invalid attribute key "${trimmedKey.substring(0, 50)}...": keys must be 255 characters or less`
+        );
+      }
+    }
+
     // Create missing attribute keys
     if (missingKeys.length > 0) {
       await prisma.contactAttributeKey.createMany({
@@ -362,19 +375,21 @@ export const createContactsFromCSV = async (
               };
             }
 
-            const attributesToUpsert = Object.entries(recordToProcess).map(([key, value]) => ({
-              where: {
-                contactId_attributeKeyId: {
-                  contactId: existingContact.id,
-                  attributeKeyId: attributeKeyMap.get(key),
+            const attributesToUpsert = Object.entries(recordToProcess)
+              .filter(([_, value]) => value && value.trim() !== "")
+              .map(([key, value]) => ({
+                where: {
+                  contactId_attributeKeyId: {
+                    contactId: existingContact.id,
+                    attributeKeyId: attributeKeyMap.get(key),
+                  },
                 },
-              },
-              update: { value },
-              create: {
-                attributeKeyId: attributeKeyMap.get(key),
-                value,
-              },
-            }));
+                update: { value },
+                create: {
+                  attributeKeyId: attributeKeyMap.get(key),
+                  value,
+                },
+              }));
 
             // Update contact with upserted attributes
             const updatedContact = prisma.contact.update({
@@ -423,12 +438,14 @@ export const createContactsFromCSV = async (
               where: { contactId: existingContact.id },
             });
 
-            const newAttributes = Object.entries(recordToProcess).map(([key, value]) => ({
-              attributeKey: {
-                connect: { key_environmentId: { key, environmentId } },
-              },
-              value,
-            }));
+            const newAttributes = Object.entries(recordToProcess)
+              .filter(([_, value]) => value && value.trim() !== "")
+              .map(([key, value]) => ({
+                attributeKey: {
+                  connect: { key_environmentId: { key, environmentId } },
+                },
+                value,
+              }));
 
             const updatedContact = prisma.contact.update({
               where: { id: existingContact.id },
@@ -452,12 +469,14 @@ export const createContactsFromCSV = async (
         }
       } else {
         // Create new contact
-        const newAttributes = Object.entries(record).map(([key, value]) => ({
-          attributeKey: {
-            connect: { key_environmentId: { key, environmentId } },
-          },
-          value,
-        }));
+        const newAttributes = Object.entries(record)
+          .filter(([_, value]) => value && value.trim() !== "")
+          .map(([key, value]) => ({
+            attributeKey: {
+              connect: { key_environmentId: { key, environmentId } },
+            },
+            value,
+          }));
 
         const newContact = prisma.contact.create({
           data: {

@@ -174,6 +174,62 @@ describe("ZContactCSVUploadResponse", () => {
     }));
     expect(() => ZContactCSVUploadResponse.parse(invalidData)).toThrow(ZodError);
   });
+
+  test("should reject data with invalid email format", () => {
+    const invalidData = [
+      {
+        email: "notanemail",
+        firstName: "John",
+        lastName: "Doe",
+      },
+    ];
+    expect(() => ZContactCSVUploadResponse.parse(invalidData)).toThrow(ZodError);
+  });
+
+  test("should reject data with email missing @ symbol", () => {
+    const invalidData = [
+      {
+        email: "testexample.com",
+        firstName: "John",
+        lastName: "Doe",
+      },
+    ];
+    expect(() => ZContactCSVUploadResponse.parse(invalidData)).toThrow(ZodError);
+  });
+
+  test("should trim whitespace from emails and detect duplicates case-insensitively", () => {
+    const invalidData = [
+      {
+        email: " test@example.com ",
+        firstName: "John",
+        lastName: "Doe",
+      },
+      {
+        email: "Test@Example.com",
+        firstName: "Jane",
+        lastName: "Smith",
+      },
+    ];
+    expect(() => ZContactCSVUploadResponse.parse(invalidData)).toThrow(ZodError);
+    expect(() => ZContactCSVUploadResponse.parse(invalidData)).toThrow(/Duplicate emails/);
+  });
+
+  test("should accept valid emails with whitespace that gets trimmed", () => {
+    const validData = [
+      {
+        email: " test1@example.com ",
+        firstName: "John",
+        lastName: "Doe",
+      },
+      {
+        email: "test2@example.com",
+        firstName: "Jane",
+        lastName: "Smith",
+      },
+    ];
+    const result = ZContactCSVUploadResponse.parse(validData);
+    expect(result).toEqual(validData);
+  });
 });
 
 describe("ZContactCSVAttributeMap", () => {

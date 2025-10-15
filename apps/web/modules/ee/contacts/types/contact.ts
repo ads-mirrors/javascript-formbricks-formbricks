@@ -62,16 +62,26 @@ export const ZContactCSVUploadResponse = z
         });
       }
 
-      if (!record.email) {
+      const trimmedEmail = record.email?.trim();
+      if (!trimmedEmail) {
         return ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Email field is empty for one or more records",
         });
       }
+
+      // Validate email format
+      const emailValidation = z.string().email().safeParse(trimmedEmail);
+      if (!emailValidation.success) {
+        return ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid email format found in one or more records",
+        });
+      }
     }
 
-    // check for duplicate emails
-    const emails = data.map((record) => record.email);
+    // check for duplicate emails (case-insensitive comparison)
+    const emails = data.map((record) => record.email?.trim().toLowerCase()).filter(Boolean);
     const emailSet = new Set(emails);
 
     if (emails.length !== emailSet.size) {
@@ -82,7 +92,7 @@ export const ZContactCSVUploadResponse = z
     }
 
     // check for duplicate userIds if present
-    const userIds = data.map((record) => record.userId).filter(Boolean);
+    const userIds = data.map((record) => record.userId?.trim()).filter(Boolean);
     if (userIds?.length > 0) {
       const userIdSet = new Set(userIds);
       if (userIds.length !== userIdSet.size) {
